@@ -1,0 +1,1630 @@
+<!DOCTYPE html>
+<html lang="en" class="dark h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FLIT — Simple Photo Editing Tools</title>
+    <meta name="description" content="Fast, simple photo editing tools for filters, adjustments, resizing, compression and more right in your browser.">
+    <meta property="og:title" content="FLIT — Photo Tools Platform">
+    <meta property="og:description" content="Modern online photo editing and image utility platform.">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Inter & Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        flit: {
+                            bg: '#050505',
+                            surface: '#0f0f11',
+                            card: '#141417',
+                            border: '#27272a',
+                            subtle: '#3f3f46',
+                            muted: '#a1a1aa',
+                            light: '#f4f4f5'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* Custom scrollbar and range slider styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #050505;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #27272a;
+            border-radius: 3px;
+        }
+        
+        /* Custom range sliders */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+            width: 100%;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #27272a;
+            border-radius: 2px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -7px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            transition: transform 0.1s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+        }
+
+        /* Canvas backdrop pattern */
+        .checkerboard-bg {
+            background-color: #0d0d0e;
+            background-image: 
+                linear-gradient(45deg, #18181b 25%, transparent 25%), 
+                linear-gradient(-45deg, #18181b 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #18181b 75%), 
+                linear-gradient(-45deg, transparent 75%, #18181b 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        /* Crop Overlay Box */
+        .crop-overlay {
+            position: absolute;
+            border: 2px solid #ffffff;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.65);
+            touch-action: none;
+        }
+        .crop-handle {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #ffffff;
+            border: 1px solid #000;
+        }
+        .handle-tl { top: -6px; left: -6px; cursor: nwse-resize; }
+        .handle-tr { top: -6px; right: -6px; cursor: nesw-resize; }
+        .handle-bl { bottom: -6px; left: -6px; cursor: nesw-resize; }
+        .handle-br { bottom: -6px; right: -6px; cursor: nwse-resize; }
+
+        /* Animation utilities */
+        .fade-enter { opacity: 0; transform: translateY(8px); }
+        .fade-enter-active { opacity: 1; transform: translateY(0); transition: opacity 0.25s ease, transform 0.25s ease; }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-flit-bg text-flit-light font-sans h-full flex flex-col antialiased selection:bg-white selection:text-black select-none">
+
+    <!-- SPLASH SCREEN -->
+    <div id="splash-screen" class="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center transition-opacity duration-700 pointer-events-auto">
+        <div class="text-center px-4 fade-enter fade-enter-active">
+            <h1 class="text-5xl md:text-7xl font-light tracking-tighter text-white mb-3">FLIT</h1>
+            <p class="text-xs uppercase tracking-[0.3em] text-flit-muted font-mono">YOUR PHOTO. YOUR LOOK.</p>
+        </div>
+        <button id="skip-splash" class="absolute bottom-10 text-xs text-flit-muted underline hover:text-white transition">Skip</button>
+    </div>
+
+    <!-- MAIN WRAPPER -->
+    <div class="flex-1 flex flex-col h-full overflow-hidden">
+
+        <!-- DESKTOP / MAIN HEADER NAV -->
+        <header id="desktop-header" class="h-14 border-b border-flit-border bg-flit-bg/90 backdrop-blur sticky top-0 z-30 flex items-center justify-between px-4 md:px-8">
+            <div class="flex items-center space-x-6">
+                <button onclick="navigateTo('home')" class="text-xl font-bold tracking-tight text-white flex items-center space-x-2">
+                    <span class="bg-white text-black px-2 py-0.5 rounded text-xs font-mono font-bold">FL</span>
+                    <span>FLIT</span>
+                </button>
+                <span class="hidden md:inline-block text-xs font-mono text-flit-muted border-l border-flit-border pl-4">v1.0 / BROWSER ENGINE</span>
+            </div>
+
+            <!-- Main Desktop Navigation -->
+            <nav class="hidden md:flex items-center space-x-1">
+                <button onclick="navigateTo('home')" class="nav-btn px-4 py-1.5 text-xs font-medium rounded-lg text-flit-muted hover:text-white hover:bg-flit-surface transition" data-view="home">Home</button>
+                <button onclick="navigateTo('tools')" class="nav-btn px-4 py-1.5 text-xs font-medium rounded-lg text-flit-muted hover:text-white hover:bg-flit-surface transition" data-view="tools">Tools</button>
+                <button onclick="openUploadModal()" class="nav-btn px-4 py-1.5 text-xs font-medium rounded-lg bg-white text-black hover:bg-zinc-200 transition font-semibold flex items-center space-x-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    <span>New Photo</span>
+                </button>
+                <button onclick="navigateTo('activity')" class="nav-btn px-4 py-1.5 text-xs font-medium rounded-lg text-flit-muted hover:text-white hover:bg-flit-surface transition" data-view="activity">Activity</button>
+                <button onclick="navigateTo('settings')" class="nav-btn px-4 py-1.5 text-xs font-medium rounded-lg text-flit-muted hover:text-white hover:bg-flit-surface transition" data-view="settings">Settings</button>
+            </nav>
+
+            <div class="flex items-center space-x-3">
+                <button onclick="openUploadModal()" class="md:hidden text-xs bg-white text-black px-3 py-1.5 rounded-lg font-semibold flex items-center space-x-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    <span>Upload</span>
+                </button>
+                <button onclick="navigateTo('settings')" class="text-flit-muted hover:text-white p-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- CONTENT VIEWS WRAPPER -->
+        <main class="flex-1 overflow-y-auto relative pb-20 md:pb-6">
+
+            <!-- 1. HOME VIEW -->
+            <section id="view-home" class="view-page p-4 md:p-12 max-w-6xl mx-auto fade-enter">
+                <div class="py-12 md:py-20 text-center max-w-2xl mx-auto space-y-6">
+                    <p class="text-xs uppercase tracking-[0.25em] text-flit-muted font-mono">YOUR IMAGE. YOUR WAY.</p>
+                    <h2 class="text-4xl md:text-6xl font-light text-white tracking-tight leading-tight">
+                        Make every photo <br><span class="font-normal italic">feel different.</span>
+                    </h2>
+                    <p class="text-sm md:text-base text-flit-muted font-normal max-w-lg mx-auto leading-relaxed">
+                        High performance browser-native photo adjustments, transformations, filters, and utilities. Private and fast.
+                    </p>
+                    <div class="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
+                        <button onclick="openUploadModal()" class="w-full sm:w-auto px-8 py-3.5 bg-white text-black text-sm font-semibold rounded-xl hover:bg-zinc-200 transition shadow-lg flex items-center justify-center space-x-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                            <span>+ New photo</span>
+                        </button>
+                        <button onclick="loadSampleImage()" class="w-full sm:w-auto px-6 py-3.5 bg-flit-card border border-flit-border text-flit-light text-sm font-medium rounded-xl hover:bg-flit-surface transition flex items-center justify-center space-x-2">
+                            <svg class="w-4 h-4 text-flit-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            <span>Try Sample Photo</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Featured Tools Grid -->
+                <div class="mt-12">
+                    <div class="flex items-center justify-between mb-6 border-b border-flit-border pb-3">
+                        <h3 class="text-xs uppercase tracking-widest text-flit-muted font-mono">QUICK ACCESS TOOLS</h3>
+                        <button onclick="navigateTo('tools')" class="text-xs text-white hover:underline flex items-center space-x-1">
+                            <span>View All</span>
+                            <span>→</span>
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div onclick="selectToolAndOpen('adjust')" class="p-5 bg-flit-card border border-flit-border rounded-xl hover:border-zinc-500 cursor-pointer transition group">
+                            <div class="w-8 h-8 rounded-lg bg-flit-surface flex items-center justify-center text-white mb-4 group-hover:scale-110 transition-transform">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                            </div>
+                            <h4 class="text-sm font-semibold text-white mb-1">Adjustments</h4>
+                            <p class="text-xs text-flit-muted leading-relaxed">Exposure, contrast, temperature, highlights & shadows.</p>
+                        </div>
+
+                        <div onclick="selectToolAndOpen('crop')" class="p-5 bg-flit-card border border-flit-border rounded-xl hover:border-zinc-500 cursor-pointer transition group">
+                            <div class="w-8 h-8 rounded-lg bg-flit-surface flex items-center justify-center text-white mb-4 group-hover:scale-110 transition-transform">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6h14a2 2 0 012 2v14M18 3v18M6 21V7a2 2 0 012-2h14"></path></svg>
+                            </div>
+                            <h4 class="text-sm font-semibold text-white mb-1">Crop & Rotate</h4>
+                            <p class="text-xs text-flit-muted leading-relaxed">Aspect ratios 1:1, 16:9, 4:5, custom drag crop.</p>
+                        </div>
+
+                        <div onclick="selectToolAndOpen('compress')" class="p-5 bg-flit-card border border-flit-border rounded-xl hover:border-zinc-500 cursor-pointer transition group">
+                            <div class="w-8 h-8 rounded-lg bg-flit-surface flex items-center justify-center text-white mb-4 group-hover:scale-110 transition-transform">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+                            </div>
+                            <h4 class="text-sm font-semibold text-white mb-1">Compress</h4>
+                            <p class="text-xs text-flit-muted leading-relaxed">Reduce file size without loss of visual fidelity.</p>
+                        </div>
+
+                        <div onclick="selectToolAndOpen('filters')" class="p-5 bg-flit-card border border-flit-border rounded-xl hover:border-zinc-500 cursor-pointer transition group">
+                            <div class="w-8 h-8 rounded-lg bg-flit-surface flex items-center justify-center text-white mb-4 group-hover:scale-110 transition-transform">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>
+                            </div>
+                            <h4 class="text-sm font-semibold text-white mb-1">Presets</h4>
+                            <p class="text-xs text-flit-muted leading-relaxed">Film, duotone, grayscale, and editorial presets.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. TOOLS VIEW -->
+            <section id="view-tools" class="view-page hidden p-4 md:p-12 max-w-6xl mx-auto fade-enter">
+                <div class="mb-8">
+                    <h2 class="text-2xl md:text-3xl font-light text-white tracking-tight">TOOLS</h2>
+                    <p class="text-xs text-flit-muted uppercase tracking-widest font-mono mt-1">EVERYTHING YOU NEED TO EDIT YOUR IMAGE</p>
+                </div>
+
+                <!-- CATEGORIES -->
+                <div class="space-y-10">
+
+                    <!-- CATEGORY 1: EDIT -->
+                    <div>
+                        <h3 class="text-xs font-mono text-flit-muted uppercase tracking-widest mb-4 pb-2 border-b border-flit-border">01 / EDIT</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                            <div onclick="selectToolAndOpen('crop')" class="p-4 bg-flit-card border border-flit-border rounded-xl hover:border-zinc-500 cursor-pointer flex items-start space-x-3">
+                                <div class="p-2 rounded bg-flit-surface text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6h14a2 2 0 012 2v14M18 3v18M6 21V7a2 2 0 012-2h14"></path></svg></div>
+                                <div>
+                                    <h4 class="text-xs font-semibold text-white">Crop</h4>
+                                    <p class="text-[11px] text-flit-muted mt-1">Trim canvas to custom or standard ratios.</p>
+                                </div>
+                            </div>
+                            <div onclick="selectToolAndOpen('resize')" class="p-4 bg-flit-card border border-flit-border rounded-xl hover:border-zinc-500 cursor-pointer flex items-start space-x-3">
+                                <div class="p-2 rounded bg-flit-surface text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-2V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg></div>
+                                <div>
+                                    <h4 class="text-xs font-semibold text-white">Resize</h4>
+                                    <p class="text-[11px] text-flit-muted mt-1">Scale dimensions with aspect ratio lock.</p>
+                                </div>
+                            </div>
+                            <div onclick="selectToolAndOpen('rotate')" class="p-4 bg-flit-card border border-flit-border rounded-xl hover:border-zinc-500 cursor-pointer flex items-start space-x-3">
+                                <div class="p-2 rounded bg-flit-surface text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></div>
+                                <div>
+                                    <h4 class="text-xs font-semibold text-white">Rotate & Flip</h4>
+                                    <p class="text-[11px] text-flit-muted mt-1">Rotate 90 degrees or mirror image.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CATEGORY 2: ADJUST -->
+                    <div>
+                        <h3 class="text-xs font-mono text-flit-muted uppercase tracking-widest mb-4 pb-2 border-b border-flit-border">02 / ADJUST</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                            <div onclick="selectToolAndOpen('brightness')" class="p-4 bg-flit-card border border-flit-border rounded-xl hover:border-zinc-500 cursor-pointer flex items-start space-x-3">
+                                <div class="p-2 rounded bg-flit-surface text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg></div>
+                                <div>
+                                    <h4 class="text-xs font-semibold text-white">Light & Tone</h4>
+                                    <p class="text-[11px] text-flit-muted mt-1">Brightness, Contrast, Exposure.</p>
+                                </div>
+                            </div>
+                            <div onclick="selectToolAndOpen('temperature')" class="p-4 bg-flit-card border border-flit-border rounded-xl hover:border-zinc-500 cursor-pointer flex items-start space-x-3">
+                                <div class="p-2 rounded bg-flit-surface text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg></div>
+                                <div>
+                                    <h4 class="text-xs font-semibold text-white">Color Temperature</h4>
+                                    <p class="text-[11px] text-flit-muted mt-1">Warmth, Tint and Saturation control.</p>
+                                </div>
+                            </div>
+                            <div onclick="selectToolAndOpen('highlights')" class="p-4 bg-flit-card border border-flit-border rounded-xl hover:border-zinc-500 cursor-pointer flex items-start space-x-3">
+                                <div class="p-2 rounded bg-flit-surface text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg></div>
+                                <div>
+                                    <h4 class="text-xs font-semibold text-white">Highlights & Shadows</h4>
+                                    <p class="text-[11px] text-flit-muted mt-1">Recover bright details and lift shadows.</p>
+                                </div>
+                            </div>
+                            <div onclick="selectToolAndOpen('sharpness')" class="p-4 bg-flit-card border border-flit-border rounded-xl hover:border-zinc-500 cursor-pointer flex items-start space-x-3">
+                                <div class="p-2 rounded bg-flit-surface text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg></div>
+                                <div>
+                                    <h4 class="text-xs font-semibold text-white">Clarity & Blur</h4>
+                                    <p class="text-[11px] text-flit-muted mt-1">Sharpen edges or apply soft box blur.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CATEGORY 3: STYLE -->
+                    <div>
+                        <h3 class="text-xs font-mono text-flit-muted uppercase tracking-widest mb-4 pb-2 border-b border-flit-border">03 / STYLE</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                            <div onclick="selectToolAndOpen('vignette')" class="p-4 bg-flit-card border border-flit-border rounded-xl hover:border-zinc-500 cursor-pointer flex items-start space-x-3">
+                                <div class="p-2 rounded bg-flit-surface text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg></div>
+                                <div>
+                                    <h4 class="text-xs font-semibold text-white">Vignette & Grain</h4>
+                                    <p class="text-[11px] text-flit-muted mt-1">Subtle lens edge darkening & film grain.</p>
+                                </div>
+                            </div>
+                            <div onclick="selectToolAndOpen('duotone')" class="p-4 bg-flit-card border border-flit-border rounded-xl hover:border-zinc-500 cursor-pointer flex items-start space-x-3">
+                                <div class="p-2 rounded bg-flit-surface text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343"></path></svg></div>
+                                <div>
+                                    <h4 class="text-xs font-semibold text-white">Duotone & Fade</h4>
+                                    <p class="text-[11px] text-flit-muted mt-1">Two-color toning and lifted vintage blacks.</p>
+                                </div>
+                            </div>
+                            <div onclick="selectToolAndOpen('filters')" class="p-4 bg-flit-card border border-flit-border rounded-xl hover:border-zinc-500 cursor-pointer flex items-start space-x-3">
+                                <div class="p-2 rounded bg-flit-surface text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg></div>
+                                <div>
+                                    <h4 class="text-xs font-semibold text-white">Preset Look Architecture</h4>
+                                    <p class="text-[11px] text-flit-muted mt-1">Apply modular visual presets.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CATEGORY 4: IMAGE UTILITY -->
+                    <div>
+                        <h3 class="text-xs font-mono text-flit-muted uppercase tracking-widest mb-4 pb-2 border-b border-flit-border">04 / UTILITY & CONVERT</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                            <div onclick="selectToolAndOpen('compress')" class="p-4 bg-flit-card border border-flit-border rounded-xl hover:border-zinc-500 cursor-pointer flex items-start space-x-3">
+                                <div class="p-2 rounded bg-flit-surface text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg></div>
+                                <div>
+                                    <h4 class="text-xs font-semibold text-white">Compress Image</h4>
+                                    <p class="text-[11px] text-flit-muted mt-1">Quality reduction & file size stats.</p>
+                                </div>
+                            </div>
+                            <div onclick="selectToolAndOpen('convert')" class="p-4 bg-flit-card border border-flit-border rounded-xl hover:border-zinc-500 cursor-pointer flex items-start space-x-3">
+                                <div class="p-2 rounded bg-flit-surface text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg></div>
+                                <div>
+                                    <h4 class="text-xs font-semibold text-white">Convert Format</h4>
+                                    <p class="text-[11px] text-flit-muted mt-1">Export as JPG, PNG or WEBP instantly.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- 3. EDITOR WORKSPACE VIEW -->
+            <section id="view-editor" class="view-page hidden h-full flex flex-col md:flex-row overflow-hidden bg-black">
+
+                <!-- EMPTY STATE (If no image loaded) -->
+                <div id="editor-empty-state" class="absolute inset-0 z-20 bg-black flex flex-col items-center justify-center p-6 text-center">
+                    <div class="w-16 h-16 rounded-2xl bg-flit-surface border border-flit-border flex items-center justify-center mb-4 text-flit-muted">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <h3 class="text-lg font-medium text-white mb-1">No image selected</h3>
+                    <p class="text-xs text-flit-muted mb-6">Upload a photo to start editing locally in your browser.</p>
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <button onclick="openUploadModal()" class="px-6 py-2.5 bg-white text-black text-xs font-semibold rounded-lg hover:bg-zinc-200 transition">
+                            + New photo
+                        </button>
+                        <button onclick="loadSampleImage()" class="px-6 py-2.5 bg-flit-card border border-flit-border text-xs text-white rounded-lg hover:bg-flit-surface transition">
+                            Load Sample Photo
+                        </button>
+                    </div>
+                </div>
+
+                <!-- EDITOR CONTENT (When image loaded) -->
+                <div class="flex-1 flex flex-col h-full overflow-hidden">
+
+                    <!-- EDITOR TOP BAR -->
+                    <div class="h-12 border-b border-flit-border bg-flit-bg px-4 flex items-center justify-between z-10 shrink-0">
+                        <div class="flex items-center space-x-3">
+                            <button onclick="navigateTo('home')" class="text-xs text-flit-muted hover:text-white flex items-center space-x-1">
+                                <span>← Back</span>
+                            </button>
+                            <span class="text-xs font-mono text-flit-muted border-l border-flit-border pl-3" id="img-dim-indicator">0 × 0 px</span>
+                        </div>
+
+                        <!-- Undo / Redo / Zoom / Reset Controls -->
+                        <div class="flex items-center space-x-2">
+                            <button id="btn-undo" onclick="undo()" disabled class="p-1.5 text-xs text-flit-muted hover:text-white disabled:opacity-30 disabled:hover:text-flit-muted transition" title="Undo">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
+                            </button>
+                            <button id="btn-redo" onclick="redo()" disabled class="p-1.5 text-xs text-flit-muted hover:text-white disabled:opacity-30 disabled:hover:text-flit-muted transition" title="Redo">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10H11a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6"></path></svg>
+                            </button>
+
+                            <div class="h-4 border-l border-flit-border mx-1"></div>
+
+                            <button onclick="zoomCanvas(-0.1)" class="p-1.5 text-xs text-flit-muted hover:text-white" title="Zoom Out">-</button>
+                            <span id="zoom-text" class="text-[10px] font-mono text-flit-muted">100%</span>
+                            <button onclick="zoomCanvas(0.1)" class="p-1.5 text-xs text-flit-muted hover:text-white" title="Zoom In">+</button>
+                            <button onclick="resetZoom()" class="text-[10px] font-mono text-flit-muted hover:text-white px-1">FIT</button>
+
+                            <div class="h-4 border-l border-flit-border mx-1"></div>
+
+                            <button onclick="confirmReset()" class="text-xs text-red-400 hover:text-red-300 font-medium px-2 py-1 rounded">
+                                Reset
+                            </button>
+                            <button onclick="downloadImage()" class="text-xs bg-white text-black px-3 py-1 rounded font-semibold hover:bg-zinc-200 transition">
+                                Export
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- EDITOR MAIN CANVAS AREA -->
+                    <div class="flex-1 relative checkerboard-bg overflow-hidden flex items-center justify-center p-4">
+                        
+                        <!-- Main Render Canvas -->
+                        <div id="canvas-container" class="relative transition-transform duration-100 ease-out flex items-center justify-center" style="max-width: 100%; max-height: 100%;">
+                            <canvas id="main-canvas" class="shadow-2xl max-w-full max-h-full object-contain rounded-sm"></canvas>
+                            
+                            <!-- Crop Overlay Box -->
+                            <div id="crop-box" class="crop-overlay hidden">
+                                <div class="crop-handle handle-tl" data-handle="tl"></div>
+                                <div class="crop-handle handle-tr" data-handle="tr"></div>
+                                <div class="crop-handle handle-bl" data-handle="bl"></div>
+                                <div class="crop-handle handle-br" data-handle="br"></div>
+                            </div>
+                        </div>
+
+                        <!-- Canvas Loader Overlay -->
+                        <div id="canvas-loader" class="absolute inset-0 bg-black/40 backdrop-blur-sm hidden flex items-center justify-center z-20">
+                            <div class="flex items-center space-x-2 bg-flit-card border border-flit-border px-4 py-2 rounded-lg shadow-xl">
+                                <div class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                <span class="text-xs font-mono text-white">Processing pixels...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TOOL CONTROLS BAR (Mobile & Desktop) -->
+                    <div class="bg-flit-bg border-t border-flit-border flex flex-col shrink-0">
+                        
+                        <!-- Tool Tabs Row -->
+                        <div class="flex items-center space-x-1 p-2 border-b border-flit-border/50 overflow-x-auto no-scrollbar">
+                            <button onclick="switchEditorTool('adjust')" class="editor-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-flit-surface text-white whitespace-nowrap" data-tool="adjust">
+                                Adjust
+                            </button>
+                            <button onclick="switchEditorTool('crop')" class="editor-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-flit-muted hover:text-white whitespace-nowrap" data-tool="crop">
+                                Crop
+                            </button>
+                            <button onclick="switchEditorTool('rotate')" class="editor-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-flit-muted hover:text-white whitespace-nowrap" data-tool="rotate">
+                                Rotate & Flip
+                            </button>
+                            <button onclick="switchEditorTool('resize')" class="editor-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-flit-muted hover:text-white whitespace-nowrap" data-tool="resize">
+                                Resize
+                            </button>
+                            <button onclick="switchEditorTool('style')" class="editor-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-flit-muted hover:text-white whitespace-nowrap" data-tool="style">
+                                Style & Effects
+                            </button>
+                            <button onclick="switchEditorTool('filters')" class="editor-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-flit-muted hover:text-white whitespace-nowrap" data-tool="filters">
+                                Presets
+                            </button>
+                            <button onclick="switchEditorTool('compress')" class="editor-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-flit-muted hover:text-white whitespace-nowrap" data-tool="compress">
+                                Compress & Export
+                            </button>
+                        </div>
+
+                        <!-- Active Tool Panel Controls Container -->
+                        <div class="p-4 max-h-56 overflow-y-auto">
+
+                            <!-- 1. ADJUST CONTROLS PANEL -->
+                            <div id="panel-adjust" class="tool-panel grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">
+                                <div>
+                                    <div class="flex justify-between text-[11px] text-flit-muted mb-1 font-mono">
+                                        <span>BRIGHTNESS</span>
+                                        <span id="val-brightness">0</span>
+                                    </div>
+                                    <input type="range" min="-100" max="100" value="0" oninput="updateAdjustment('brightness', this.value)">
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[11px] text-flit-muted mb-1 font-mono">
+                                        <span>CONTRAST</span>
+                                        <span id="val-contrast">0</span>
+                                    </div>
+                                    <input type="range" min="-100" max="100" value="0" oninput="updateAdjustment('contrast', this.value)">
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[11px] text-flit-muted mb-1 font-mono">
+                                        <span>SATURATION</span>
+                                        <span id="val-saturation">0</span>
+                                    </div>
+                                    <input type="range" min="-100" max="100" value="0" oninput="updateAdjustment('saturation', this.value)">
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[11px] text-flit-muted mb-1 font-mono">
+                                        <span>EXPOSURE</span>
+                                        <span id="val-exposure">0</span>
+                                    </div>
+                                    <input type="range" min="-100" max="100" value="0" oninput="updateAdjustment('exposure', this.value)">
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[11px] text-flit-muted mb-1 font-mono">
+                                        <span>TEMPERATURE</span>
+                                        <span id="val-temperature">0</span>
+                                    </div>
+                                    <input type="range" min="-100" max="100" value="0" oninput="updateAdjustment('temperature', this.value)">
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[11px] text-flit-muted mb-1 font-mono">
+                                        <span>TINT</span>
+                                        <span id="val-tint">0</span>
+                                    </div>
+                                    <input type="range" min="-100" max="100" value="0" oninput="updateAdjustment('tint', this.value)">
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[11px] text-flit-muted mb-1 font-mono">
+                                        <span>HIGHLIGHTS</span>
+                                        <span id="val-highlights">0</span>
+                                    </div>
+                                    <input type="range" min="-100" max="100" value="0" oninput="updateAdjustment('highlights', this.value)">
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[11px] text-flit-muted mb-1 font-mono">
+                                        <span>SHADOWS</span>
+                                        <span id="val-shadows">0</span>
+                                    </div>
+                                    <input type="range" min="-100" max="100" value="0" oninput="updateAdjustment('shadows', this.value)">
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[11px] text-flit-muted mb-1 font-mono">
+                                        <span>SHARPNESS</span>
+                                        <span id="val-sharpness">0</span>
+                                    </div>
+                                    <input type="range" min="0" max="100" value="0" oninput="updateAdjustment('sharpness', this.value)">
+                                </div>
+                            </div>
+
+                            <!-- 2. CROP PANEL -->
+                            <div id="panel-crop" class="tool-panel hidden flex flex-col space-y-3">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="text-xs text-flit-muted font-mono mr-2">RATIO:</span>
+                                    <button onclick="setCropAspect('free')" class="crop-ratio-btn px-3 py-1 bg-flit-surface text-white text-xs rounded border border-flit-border">Free</button>
+                                    <button onclick="setCropAspect('1:1')" class="crop-ratio-btn px-3 py-1 bg-flit-card text-flit-muted text-xs rounded border border-flit-border">1:1</button>
+                                    <button onclick="setCropAspect('4:5')" class="crop-ratio-btn px-3 py-1 bg-flit-card text-flit-muted text-xs rounded border border-flit-border">4:5</button>
+                                    <button onclick="setCropAspect('16:9')" class="crop-ratio-btn px-3 py-1 bg-flit-card text-flit-muted text-xs rounded border border-flit-border">16:9</button>
+                                    <button onclick="setCropAspect('9:16')" class="crop-ratio-btn px-3 py-1 bg-flit-card text-flit-muted text-xs rounded border border-flit-border">9:16</button>
+                                    <button onclick="setCropAspect('3:2')" class="crop-ratio-btn px-3 py-1 bg-flit-card text-flit-muted text-xs rounded border border-flit-border">3:2</button>
+                                </div>
+                                <div class="flex items-center space-x-3 pt-2">
+                                    <button onclick="applyCropAction()" class="px-5 py-2 bg-white text-black text-xs font-semibold rounded hover:bg-zinc-200">Apply Crop</button>
+                                    <button onclick="cancelCropAction()" class="px-4 py-2 border border-flit-border text-flit-muted text-xs rounded hover:text-white">Cancel</button>
+                                </div>
+                            </div>
+
+                            <!-- 3. ROTATE & FLIP PANEL -->
+                            <div id="panel-rotate" class="tool-panel hidden flex flex-wrap items-center gap-3">
+                                <button onclick="rotateImage(-90)" class="px-4 py-2 bg-flit-card border border-flit-border text-white text-xs rounded hover:bg-flit-surface flex items-center space-x-2">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
+                                    <span>Rotate Left 90°</span>
+                                </button>
+                                <button onclick="rotateImage(90)" class="px-4 py-2 bg-flit-card border border-flit-border text-white text-xs rounded hover:bg-flit-surface flex items-center space-x-2">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10H11a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6"></path></svg>
+                                    <span>Rotate Right 90°</span>
+                                </button>
+                                <button onclick="flipImage('h')" class="px-4 py-2 bg-flit-card border border-flit-border text-white text-xs rounded hover:bg-flit-surface">Flip Horizontal</button>
+                                <button onclick="flipImage('v')" class="px-4 py-2 bg-flit-card border border-flit-border text-white text-xs rounded hover:bg-flit-surface">Flip Vertical</button>
+                            </div>
+
+                            <!-- 4. RESIZE PANEL -->
+                            <div id="panel-resize" class="tool-panel hidden flex flex-col space-y-3">
+                                <div class="flex items-center space-x-4">
+                                    <div>
+                                        <label class="block text-[10px] font-mono text-flit-muted mb-1">WIDTH (PX)</label>
+                                        <input type="number" id="resize-width" oninput="handleResizeWidthChange(this.value)" class="w-28 bg-flit-card border border-flit-border text-white text-xs rounded px-2.5 py-1.5 focus:outline-none focus:border-zinc-400">
+                                    </div>
+                                    <span class="text-flit-muted pt-4">×</span>
+                                    <div>
+                                        <label class="block text-[10px] font-mono text-flit-muted mb-1">HEIGHT (PX)</label>
+                                        <input type="number" id="resize-height" oninput="handleResizeHeightChange(this.value)" class="w-28 bg-flit-card border border-flit-border text-white text-xs rounded px-2.5 py-1.5 focus:outline-none focus:border-zinc-400">
+                                    </div>
+                                    <div class="pt-4 flex items-center space-x-2">
+                                        <input type="checkbox" id="resize-lock" checked class="rounded bg-flit-card border-flit-border">
+                                        <label for="resize-lock" class="text-xs text-flit-muted">Lock aspect ratio</label>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-2 pt-1">
+                                    <button onclick="applyResizeAction()" class="px-5 py-2 bg-white text-black text-xs font-semibold rounded hover:bg-zinc-200">Apply Dimensions</button>
+                                </div>
+                            </div>
+
+                            <!-- 5. STYLE & EFFECTS PANEL -->
+                            <div id="panel-style" class="tool-panel hidden grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">
+                                <div>
+                                    <div class="flex justify-between text-[11px] text-flit-muted mb-1 font-mono">
+                                        <span>BLUR</span>
+                                        <span id="val-blur">0</span>
+                                    </div>
+                                    <input type="range" min="0" max="30" value="0" oninput="updateAdjustment('blur', this.value)">
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[11px] text-flit-muted mb-1 font-mono">
+                                        <span>VIGNETTE</span>
+                                        <span id="val-vignette">0</span>
+                                    </div>
+                                    <input type="range" min="0" max="100" value="0" oninput="updateAdjustment('vignette', this.value)">
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[11px] text-flit-muted mb-1 font-mono">
+                                        <span>GRAIN</span>
+                                        <span id="val-grain">0</span>
+                                    </div>
+                                    <input type="range" min="0" max="100" value="0" oninput="updateAdjustment('grain', this.value)">
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[11px] text-flit-muted mb-1 font-mono">
+                                        <span>FADE</span>
+                                        <span id="val-fade">0</span>
+                                    </div>
+                                    <input type="range" min="0" max="100" value="0" oninput="updateAdjustment('fade', this.value)">
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[11px] text-flit-muted mb-1 font-mono">
+                                        <span>GRAYSCALE</span>
+                                        <span id="val-grayscale">0</span>
+                                    </div>
+                                    <input type="range" min="0" max="100" value="0" oninput="updateAdjustment('grayscale', this.value)">
+                                </div>
+                            </div>
+
+                            <!-- 6. PRESETS / FILTERS PANEL -->
+                            <div id="panel-filters" class="tool-panel hidden">
+                                <p class="text-[11px] text-flit-muted mb-3 font-mono">MODULAR FILTER ARCHITECTURE</p>
+                                <div class="grid grid-cols-3 sm:grid-cols-6 gap-3">
+                                    <button onclick="applyFilterPreset('original')" class="filter-card p-3 bg-flit-card border border-flit-border rounded-lg text-center hover:border-white transition">
+                                        <span class="block text-xs font-semibold text-white">Original</span>
+                                        <span class="block text-[10px] text-flit-muted mt-1">Reset</span>
+                                    </button>
+                                    <button onclick="applyFilterPreset('mono')" class="filter-card p-3 bg-flit-card border border-flit-border rounded-lg text-center hover:border-white transition">
+                                        <span class="block text-xs font-semibold text-white">Mono Noir</span>
+                                        <span class="block text-[10px] text-flit-muted mt-1">B&W High Con</span>
+                                    </button>
+                                    <button onclick="applyFilterPreset('warmVintage')" class="filter-card p-3 bg-flit-card border border-flit-border rounded-lg text-center hover:border-white transition">
+                                        <span class="block text-xs font-semibold text-white">Warm Film</span>
+                                        <span class="block text-[10px] text-flit-muted mt-1">Amber Tone</span>
+                                    </button>
+                                    <button onclick="applyFilterPreset('coolFade')" class="filter-card p-3 bg-flit-card border border-flit-border rounded-lg text-center hover:border-white transition">
+                                        <span class="block text-xs font-semibold text-white">Cool Matte</span>
+                                        <span class="block text-[10px] text-flit-muted mt-1">Lifted Shadow</span>
+                                    </button>
+                                    <button onclick="applyFilterPreset('duotoneBlue')" class="filter-card p-3 bg-flit-card border border-flit-border rounded-lg text-center hover:border-white transition">
+                                        <span class="block text-xs font-semibold text-white">Cyan Duotone</span>
+                                        <span class="block text-[10px] text-flit-muted mt-1">Two-Color</span>
+                                    </button>
+                                    <button onclick="applyFilterPreset('crispDetail')" class="filter-card p-3 bg-flit-card border border-flit-border rounded-lg text-center hover:border-white transition">
+                                        <span class="block text-xs font-semibold text-white">Crisp Pop</span>
+                                        <span class="block text-[10px] text-flit-muted mt-1">Vibrant</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 7. COMPRESS & EXPORT PANEL -->
+                            <div id="panel-compress" class="tool-panel hidden flex flex-col space-y-4">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                    <div>
+                                        <div class="flex justify-between text-[11px] text-flit-muted mb-1 font-mono">
+                                            <span>IMAGE QUALITY</span>
+                                            <span id="val-compress-quality">90%</span>
+                                        </div>
+                                        <input type="range" id="compress-quality-slider" min="10" max="100" value="90" oninput="updateCompressQuality(this.value)">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[11px] text-flit-muted mb-1 font-mono">FORMAT</label>
+                                        <select id="export-format" class="w-full bg-flit-card border border-flit-border text-white text-xs rounded px-3 py-2">
+                                            <option value="image/jpeg">JPEG (.jpg)</option>
+                                            <option value="image/png">PNG (.png)</option>
+                                            <option value="image/webp">WEBP (.webp)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="p-3 bg-flit-surface border border-flit-border rounded-lg flex items-center justify-between text-xs font-mono">
+                                    <div>
+                                        <span class="text-flit-muted">Original Size: </span>
+                                        <span id="info-orig-size" class="text-white font-semibold">0 KB</span>
+                                    </div>
+                                    <div>
+                                        <span class="text-flit-muted">Est. Export Size: </span>
+                                        <span id="info-est-size" class="text-green-400 font-semibold">0 KB</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+
+            </section>
+
+            <!-- 4. ACTIVITY VIEW -->
+            <section id="view-activity" class="view-page hidden p-4 md:p-12 max-w-4xl mx-auto fade-enter">
+                <div class="flex items-center justify-between mb-6 pb-3 border-b border-flit-border">
+                    <div>
+                        <h2 class="text-2xl font-light text-white tracking-tight">RECENT ACTIVITY</h2>
+                        <p class="text-xs text-flit-muted uppercase font-mono mt-0.5">LOCAL ACTION HISTORY LOG</p>
+                    </div>
+                    <button onclick="clearActivityLog()" class="text-xs text-flit-muted hover:text-white underline">Clear Log</button>
+                </div>
+
+                <div id="activity-log-container" class="space-y-3">
+                    <!-- Dynamic activity items rendered here -->
+                </div>
+            </section>
+
+            <!-- 5. SETTINGS VIEW -->
+            <section id="view-settings" class="view-page hidden p-4 md:p-12 max-w-3xl mx-auto fade-enter">
+                <div class="mb-8 pb-3 border-b border-flit-border">
+                    <h2 class="text-2xl font-light text-white tracking-tight">SETTINGS</h2>
+                    <p class="text-xs text-flit-muted uppercase font-mono mt-0.5">PREFERENCES & BROWSER DATA</p>
+                </div>
+
+                <div class="space-y-8">
+                    <!-- APPEARANCE -->
+                    <div>
+                        <h3 class="text-xs font-mono text-flit-muted uppercase tracking-wider mb-3">APPEARANCE</h3>
+                        <div class="p-4 bg-flit-card border border-flit-border rounded-xl flex items-center justify-between">
+                            <div>
+                                <h4 class="text-sm font-medium text-white">Theme Mode</h4>
+                                <p class="text-xs text-flit-muted mt-0.5">FLIT defaults to a dark editorial theme.</p>
+                            </div>
+                            <span class="px-3 py-1 bg-flit-surface border border-flit-border text-xs text-white rounded-lg">Dark (System)</span>
+                        </div>
+                    </div>
+
+                    <!-- EDITOR -->
+                    <div>
+                        <h3 class="text-xs font-mono text-flit-muted uppercase tracking-wider mb-3">EDITOR PREFERENCES</h3>
+                        <div class="p-4 bg-flit-card border border-flit-border rounded-xl space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h4 class="text-sm font-medium text-white">Confirm Before Reset</h4>
+                                    <p class="text-xs text-flit-muted mt-0.5">Show confirmation dialog when clearing modifications.</p>
+                                </div>
+                                <input type="checkbox" id="setting-confirm-reset" checked class="rounded bg-flit-surface border-flit-border">
+                            </div>
+                            <div class="pt-3 border-t border-flit-border/50 flex items-center justify-between">
+                                <div>
+                                    <h4 class="text-sm font-medium text-white">Realtime Slider Rendering</h4>
+                                    <p class="text-xs text-flit-muted mt-0.5">Live updates canvas while dragging sliders.</p>
+                                </div>
+                                <input type="checkbox" id="setting-live-preview" checked class="rounded bg-flit-surface border-flit-border">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PRIVACY & DATA -->
+                    <div>
+                        <h3 class="text-xs font-mono text-flit-muted uppercase tracking-wider mb-3">LOCAL STORAGE & PRIVACY</h3>
+                        <div class="p-4 bg-flit-card border border-flit-border rounded-xl space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h4 class="text-sm font-medium text-white">Local Processing</h4>
+                                    <p class="text-xs text-flit-muted mt-0.5">Images never leave your browser.</p>
+                                </div>
+                                <span class="text-xs text-green-400 font-mono">ENABLED</span>
+                            </div>
+                            <div class="pt-3 border-t border-flit-border/50 flex items-center justify-between">
+                                <button onclick="clearLocalAppStorage()" class="text-xs text-red-400 hover:text-red-300 font-medium">Clear Editor Cache & Data</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ABOUT -->
+                    <div>
+                        <h3 class="text-xs font-mono text-flit-muted uppercase tracking-wider mb-3">ABOUT FLIT</h3>
+                        <div class="p-4 bg-flit-card border border-flit-border rounded-xl space-y-2">
+                            <p class="text-sm font-semibold text-white">FLIT — Simple Photo Editing Tools</p>
+                            <p class="text-xs text-flit-muted leading-relaxed">
+                                Designed for fast, high quality image transformations and adjustments right in the browser using HTML5 Canvas.
+                            </p>
+                            <p class="text-[11px] font-mono text-flit-muted pt-2">Version 1.0.0 / Zero Server Dependencies</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- MOBILE BOTTOM NAVIGATION -->
+        <nav class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-flit-bg/95 backdrop-blur border-t border-flit-border z-40 flex items-center justify-around px-2">
+            <button onclick="navigateTo('home')" class="mobile-nav-btn flex flex-col items-center justify-center space-y-1 text-white" data-view="home">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 00-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                <span class="text-[10px] font-medium">Home</span>
+            </button>
+
+            <button onclick="navigateTo('tools')" class="mobile-nav-btn flex flex-col items-center justify-center space-y-1 text-flit-muted hover:text-white" data-view="tools">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+                <span class="text-[10px] font-medium">Tools</span>
+            </button>
+
+            <button onclick="openUploadModal()" class="flex flex-col items-center justify-center -mt-5">
+                <div class="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center shadow-lg border-2 border-black">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+                </div>
+            </button>
+
+            <button onclick="navigateTo('activity')" class="mobile-nav-btn flex flex-col items-center justify-center space-y-1 text-flit-muted hover:text-white" data-view="activity">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span class="text-[10px] font-medium">Activity</span>
+            </button>
+
+            <button onclick="navigateTo('settings')" class="mobile-nav-btn flex flex-col items-center justify-center space-y-1 text-flit-muted hover:text-white" data-view="settings">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
+                <span class="text-[10px] font-medium">Settings</span>
+            </button>
+        </nav>
+
+    </div>
+
+    <!-- UPLOAD MODAL -->
+    <div id="upload-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-flit-card border border-flit-border rounded-2xl p-6 max-w-md w-full shadow-2xl relative fade-enter">
+            <button onclick="closeUploadModal()" class="absolute top-4 right-4 text-flit-muted hover:text-white">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+
+            <h3 class="text-lg font-semibold text-white mb-1">Select Image</h3>
+            <p class="text-xs text-flit-muted mb-6">PNG, JPG, WEBP formats supported.</p>
+
+            <!-- Drop Zone -->
+            <div id="drop-zone" onclick="triggerFileInput()" class="border-2 border-dashed border-flit-border rounded-xl p-8 text-center cursor-pointer hover:border-zinc-400 transition bg-flit-surface/50">
+                <svg class="w-10 h-10 text-flit-muted mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                <p class="text-xs font-semibold text-white mb-1">Drop your image here</p>
+                <p class="text-[11px] text-flit-muted">or click to browse local files</p>
+                <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="handleFileSelect(event)">
+            </div>
+
+            <div class="mt-4 text-center">
+                <button onclick="loadSampleImage()" class="text-xs text-flit-muted hover:text-white underline">Or load a sample photo</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATIONS -->
+    <div id="toast-container" class="fixed top-16 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <script>
+        // FLIT Application Core State
+        const state = {
+            currentView: 'home',
+            originalImage: null, // HTMLImageElement
+            workingCanvas: null, // Offscreen canvas with working pixels
+            historyStack: [],    // Stack of ImageData for Undo
+            redoStack: [],       // Stack for Redo
+            maxHistory: 15,
+            activeTool: 'adjust',
+            zoomLevel: 1,
+            cropRatio: 'free',
+            cropBox: { x: 0, y: 0, w: 0, h: 0 },
+            adjustments: {
+                brightness: 0,
+                contrast: 0,
+                saturation: 0,
+                exposure: 0,
+                temperature: 0,
+                tint: 0,
+                highlights: 0,
+                shadows: 0,
+                sharpness: 0,
+                blur: 0,
+                vignette: 0,
+                grain: 0,
+                fade: 0,
+                grayscale: 0
+            },
+            activityLog: []
+        };
+
+        // DOM Element Cache
+        let mainCanvas, mainCtx;
+
+        window.onload = function () {
+            mainCanvas = document.getElementById('main-canvas');
+            mainCtx = mainCanvas.getContext('2d');
+
+            // Setup Splash Screen Timer
+            setTimeout(() => {
+                const splash = document.getElementById('splash-screen');
+                if (splash) {
+                    splash.style.opacity = '0';
+                    setTimeout(() => splash.remove(), 700);
+                }
+            }, 1200);
+
+            document.getElementById('skip-splash').onclick = function() {
+                const splash = document.getElementById('splash-screen');
+                if (splash) splash.remove();
+            };
+
+            // Setup Drag and Drop
+            setupDragAndDrop();
+
+            // Initial Activity Log
+            addActivityLog('System initialized in local mode.');
+        };
+
+        function navigateTo(viewId) {
+            state.currentView = viewId;
+            document.querySelectorAll('.view-page').forEach(el => el.classList.add('hidden'));
+            
+            const target = document.getElementById(`view-${viewId}`);
+            if (target) {
+                target.classList.remove('hidden');
+            }
+
+            // Update Desktop Nav styles
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                if (btn.dataset.view === viewId) {
+                    btn.classList.add('text-white', 'bg-flit-surface');
+                    btn.classList.remove('text-flit-muted');
+                } else {
+                    btn.classList.remove('text-white', 'bg-flit-surface');
+                    btn.classList.add('text-flit-muted');
+                }
+            });
+
+            // Update Mobile Nav styles
+            document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+                if (btn.dataset.view === viewId) {
+                    btn.classList.add('text-white');
+                    btn.classList.remove('text-flit-muted');
+                } else {
+                    btn.classList.remove('text-white');
+                    btn.classList.add('text-flit-muted');
+                }
+            });
+        }
+
+        function openUploadModal() {
+            document.getElementById('upload-modal').classList.remove('hidden');
+        }
+
+        function closeUploadModal() {
+            document.getElementById('upload-modal').classList.add('hidden');
+        }
+
+        function triggerFileInput() {
+            document.getElementById('file-input').click();
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                processFile(file);
+            }
+        }
+
+        function setupDragAndDrop() {
+            const dropZone = document.getElementById('drop-zone');
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, e => e.preventDefault(), false);
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                if (files.length) processFile(files[0]);
+            });
+        }
+
+        function processFile(file) {
+            if (!file.type.match('image.*')) {
+                showToast('Please select a valid image file (JPG, PNG, WEBP)');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function (evt) {
+                const img = new Image();
+                img.onload = function () {
+                    initEditorWithImage(img, file.name);
+                    closeUploadModal();
+                };
+                img.src = evt.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function loadSampleImage() {
+            // High resolution placeholder landscape sample image
+            const sampleUrl = 'https://picsum.photos/1200/800';
+            showToast('Loading sample photograph...');
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = function () {
+                initEditorWithImage(img, 'sample-photo.jpg');
+                closeUploadModal();
+            };
+            img.onerror = function() {
+                // Fallback generated canvas sample
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = 1000;
+                tempCanvas.height = 700;
+                const ctx = tempCanvas.getContext('2d');
+                const grad = ctx.createLinearGradient(0,0,1000,700);
+                grad.addColorStop(0, '#1c1917');
+                grad.addColorStop(1, '#44403c');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0,0,1000,700);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '30px Inter';
+                ctx.fillText('FLIT Sample Image', 350, 350);
+                
+                const fallbackImg = new Image();
+                fallbackImg.onload = function() {
+                    initEditorWithImage(fallbackImg, 'flit-sample.jpg');
+                    closeUploadModal();
+                };
+                fallbackImg.src = tempCanvas.toDataURL();
+            }
+            img.src = sampleUrl;
+        }
+
+        function initEditorWithImage(img, filename) {
+            state.originalImage = img;
+            
+            // Create Offscreen Working Canvas
+            state.workingCanvas = document.createElement('canvas');
+            state.workingCanvas.width = img.naturalWidth || img.width;
+            state.workingCanvas.height = img.naturalHeight || img.height;
+            const wCtx = state.workingCanvas.getContext('2d');
+            wCtx.drawImage(img, 0, 0);
+
+            // Reset Adjustments & History
+            resetAdjustmentsState();
+            state.historyStack = [];
+            state.redoStack = [];
+            saveHistoryState();
+
+            // Hide Empty State
+            document.getElementById('editor-empty-state').classList.add('hidden');
+            
+            // Update Dimensions UI
+            document.getElementById('img-dim-indicator').innerText = `${state.workingCanvas.width} × ${state.workingCanvas.height} px`;
+            document.getElementById('resize-width').value = state.workingCanvas.width;
+            document.getElementById('resize-height').value = state.workingCanvas.height;
+            document.getElementById('info-orig-size').innerText = `${Math.round((state.workingCanvas.width * state.workingCanvas.height * 4) / 1024)} KB (raw)`;
+
+            // Render to Main Canvas
+            renderImage();
+
+            // Navigate to Editor Workspace View
+            navigateTo('editor');
+            addActivityLog(`Loaded image: ${filename}`);
+            showToast('Photo loaded into FLIT editor.');
+        }
+
+        function resetAdjustmentsState() {
+            for (let key in state.adjustments) {
+                state.adjustments[key] = 0;
+                const slider = document.querySelector(`input[oninput*="'${key}'"]`);
+                if (slider) slider.value = 0;
+                const valDisp = document.getElementById(`val-${key}`);
+                if (valDisp) valDisp.innerText = '0';
+            }
+        }
+
+        function renderImage() {
+            if (!state.workingCanvas) return;
+
+            // Set main display canvas dimensions
+            mainCanvas.width = state.workingCanvas.width;
+            mainCanvas.height = state.workingCanvas.height;
+
+            // Copy working canvas
+            mainCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+            mainCtx.drawImage(state.workingCanvas, 0, 0);
+
+            // Apply Pixel Adjustments via Canvas Context
+            applyCanvasAdjustments();
+        }
+
+        function applyCanvasAdjustments() {
+            const w = mainCanvas.width;
+            const h = mainCanvas.height;
+            const imgData = mainCtx.getImageData(0, 0, w, h);
+            const data = imgData.data;
+
+            const adj = state.adjustments;
+
+            // Pre-calculate factor constants
+            const b = parseInt(adj.brightness);
+            const c = parseInt(adj.contrast);
+            const contrastFactor = (259 * (c + 255)) / (255 * (259 - c));
+            const sat = parseInt(adj.saturation) / 100;
+            const exp = parseInt(adj.exposure);
+            const temp = parseInt(adj.temperature);
+            const tint = parseInt(adj.tint);
+            const gray = parseInt(adj.grayscale) / 100;
+            const fade = parseInt(adj.fade);
+            const highlights = parseInt(adj.highlights);
+            const shadows = parseInt(adj.shadows);
+
+            for (let i = 0; i < data.length; i += 4) {
+                let r = data[i];
+                let g = data[i + 1];
+                let bVal = data[i + 2];
+
+                // Exposure
+                if (exp !== 0) {
+                    const factor = Math.pow(2, exp / 50);
+                    r *= factor;
+                    g *= factor;
+                    bVal *= factor;
+                }
+
+                // Brightness
+                if (b !== 0) {
+                    r += b * 1.5;
+                    g += b * 1.5;
+                    bVal += b * 1.5;
+                }
+
+                // Contrast
+                if (c !== 0) {
+                    r = contrastFactor * (r - 128) + 128;
+                    g = contrastFactor * (g - 128) + 128;
+                    bVal = contrastFactor * (bVal - 128) + 128;
+                }
+
+                // Temperature (Warmth / Cooling)
+                if (temp !== 0) {
+                    r += temp * 0.8;
+                    bVal -= temp * 0.8;
+                }
+
+                // Tint (Magenta / Green)
+                if (tint !== 0) {
+                    g -= tint * 0.8;
+                }
+
+                // Highlights & Shadows
+                const luminance = 0.299 * r + 0.587 * g + 0.114 * bVal;
+                if (highlights !== 0 && luminance > 128) {
+                    const hFactor = ((luminance - 128) / 127) * (highlights / 100);
+                    r += r * hFactor;
+                    g += g * hFactor;
+                    bVal += bVal * hFactor;
+                }
+                if (shadows !== 0 && luminance <= 128) {
+                    const sFactor = ((128 - luminance) / 128) * (shadows / 100);
+                    r += r * sFactor;
+                    g += g * sFactor;
+                    bVal += bVal * sFactor;
+                }
+
+                // Saturation
+                if (sat !== 0) {
+                    const grayLum = 0.299 * r + 0.587 * g + 0.114 * bVal;
+                    r = grayLum + (r - grayLum) * (1 + sat);
+                    g = grayLum + (g - grayLum) * (1 + sat);
+                    bVal = grayLum + (bVal - grayLum) * (1 + sat);
+                }
+
+                // Grayscale
+                if (gray > 0) {
+                    const grayLum = 0.299 * r + 0.587 * g + 0.114 * bVal;
+                    r = r * (1 - gray) + grayLum * gray;
+                    g = g * (1 - gray) + grayLum * gray;
+                    bVal = bVal * (1 - gray) + grayLum * gray;
+                }
+
+                // Fade (Lifted blacks)
+                if (fade > 0) {
+                    const fadeOffset = (fade / 100) * 45;
+                    r = r * (1 - fade / 200) + fadeOffset;
+                    g = g * (1 - fade / 200) + fadeOffset;
+                    bVal = bVal * (1 - fade / 200) + fadeOffset;
+                }
+
+                // Clamp values
+                data[i] = Math.min(255, Math.max(0, r));
+                data[i + 1] = Math.min(255, Math.max(0, g));
+                data[i + 2] = Math.min(255, Math.max(0, bVal));
+            }
+
+            mainCtx.putImageData(imgData, 0, 0);
+
+            // Apply Vignette Overlay if needed
+            if (adj.vignette > 0) {
+                applyVignette(mainCtx, w, h, adj.vignette);
+            }
+
+            // Apply Grain Overlay if needed
+            if (adj.grain > 0) {
+                applyFilmGrain(mainCtx, w, h, adj.grain);
+            }
+        }
+
+        function applyVignette(ctx, w, h, amount) {
+            const outerRadius = Math.sqrt(Math.pow(w / 2, 2) + Math.pow(h / 2, 2));
+            const gradient = ctx.createRadialGradient(w / 2, h / 2, outerRadius * 0.3, w / 2, h / 2, outerRadius);
+            gradient.addColorStop(0, 'rgba(0,0,0,0)');
+            gradient.addColorStop(1, `rgba(0,0,0,${(amount / 100) * 0.85})`);
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, w, h);
+        }
+
+        function applyFilmGrain(ctx, w, h, amount) {
+            const imgData = ctx.getImageData(0, 0, w, h);
+            const data = imgData.data;
+            const factor = amount * 0.25;
+
+            for (let i = 0; i < data.length; i += 4) {
+                const noise = (Math.random() - 0.5) * factor * 10;
+                data[i] = Math.min(255, Math.max(0, data[i] + noise));
+                data[i+1] = Math.min(255, Math.max(0, data[i+1] + noise));
+                data[i+2] = Math.min(255, Math.max(0, data[i+2] + noise));
+            }
+            ctx.putImageData(imgData, 0, 0);
+        }
+
+        let renderDebounceTimer = null;
+        function updateAdjustment(type, value) {
+            state.adjustments[type] = value;
+            const valDisp = document.getElementById(`val-${type}`);
+            if (valDisp) valDisp.innerText = value > 0 ? `+${value}` : value;
+
+            if (renderDebounceTimer) cancelAnimationFrame(renderDebounceTimer);
+            renderDebounceTimer = requestAnimationFrame(() => {
+                renderImage();
+            });
+        }
+
+        function selectToolAndOpen(toolName) {
+            switchEditorTool(toolName);
+            if (!state.workingCanvas) {
+                openUploadModal();
+            } else {
+                navigateTo('editor');
+            }
+        }
+
+        function switchEditorTool(toolName) {
+            state.activeTool = toolName;
+
+            // Highlight Tab Buttons
+            document.querySelectorAll('.editor-tab-btn').forEach(btn => {
+                if (btn.dataset.tool === toolName) {
+                    btn.classList.add('bg-flit-surface', 'text-white');
+                    btn.classList.remove('text-flit-muted');
+                } else {
+                    btn.classList.remove('bg-flit-surface', 'text-white');
+                    btn.classList.add('text-flit-muted');
+                }
+            });
+
+            // Show Tool Panels
+            document.querySelectorAll('.tool-panel').forEach(panel => panel.classList.add('hidden'));
+            const activePanel = document.getElementById(`panel-${toolName}`);
+            if (activePanel) activePanel.classList.remove('hidden');
+
+            // Handle Tool specific UI overlays
+            const cropBox = document.getElementById('crop-box');
+            if (toolName === 'crop' && state.workingCanvas) {
+                initCropOverlay();
+                cropBox.classList.remove('hidden');
+            } else {
+                cropBox.classList.add('hidden');
+            }
+        }
+
+        function rotateImage(angleDegrees) {
+            if (!state.workingCanvas) return;
+            saveHistoryState();
+
+            const tempCanvas = document.createElement('canvas');
+            const tCtx = tempCanvas.getContext('2d');
+
+            if (Math.abs(angleDegrees) === 90) {
+                tempCanvas.width = state.workingCanvas.height;
+                tempCanvas.height = state.workingCanvas.width;
+            } else {
+                tempCanvas.width = state.workingCanvas.width;
+                tempCanvas.height = state.workingCanvas.height;
+            }
+
+            tCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
+            tCtx.rotate((angleDegrees * Math.PI) / 180);
+            tCtx.drawImage(state.workingCanvas, -state.workingCanvas.width / 2, -state.workingCanvas.height / 2);
+
+            state.workingCanvas.width = tempCanvas.width;
+            state.workingCanvas.height = tempCanvas.height;
+            const wCtx = state.workingCanvas.getContext('2d');
+            wCtx.drawImage(tempCanvas, 0, 0);
+
+            document.getElementById('img-dim-indicator').innerText = `${state.workingCanvas.width} × ${state.workingCanvas.height} px`;
+            renderImage();
+            addActivityLog(`Rotated image ${angleDegrees}°`);
+            showToast(`Rotated ${angleDegrees}°`);
+        }
+
+        function flipImage(direction) {
+            if (!state.workingCanvas) return;
+            saveHistoryState();
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = state.workingCanvas.width;
+            tempCanvas.height = state.workingCanvas.height;
+            const tCtx = tempCanvas.getContext('2d');
+
+            if (direction === 'h') {
+                tCtx.translate(tempCanvas.width, 0);
+                tCtx.scale(-1, 1);
+            } else {
+                tCtx.translate(0, tempCanvas.height);
+                tCtx.scale(1, -1);
+            }
+
+            tCtx.drawImage(state.workingCanvas, 0, 0);
+            const wCtx = state.workingCanvas.getContext('2d');
+            wCtx.clearRect(0, 0, state.workingCanvas.width, state.workingCanvas.height);
+            wCtx.drawImage(tempCanvas, 0, 0);
+
+            renderImage();
+            addActivityLog(`Flipped image ${direction === 'h' ? 'horizontally' : 'vertically'}`);
+            showToast('Image flipped.');
+        }
+
+        function initCropOverlay() {
+            const cropBox = document.getElementById('crop-box');
+            cropBox.style.left = '10%';
+            cropBox.style.top = '10%';
+            cropBox.style.width = '80%';
+            cropBox.style.height = '80%';
+        }
+
+        function setCropAspect(ratioStr) {
+            state.cropRatio = ratioStr;
+            const cropBox = document.getElementById('crop-box');
+            const parent = cropBox.parentElement;
+            const parentW = parent.clientWidth;
+            const parentH = parent.clientHeight;
+
+            if (ratioStr === '1:1') {
+                const side = Math.min(parentW, parentH) * 0.7;
+                cropBox.style.width = `${side}px`;
+                cropBox.style.height = `${side}px`;
+            } else if (ratioStr === '16:9') {
+                const w = parentW * 0.8;
+                cropBox.style.width = `${w}px`;
+                cropBox.style.height = `${(w * 9) / 16}px`;
+            } else if (ratioStr === '4:5') {
+                const h = parentH * 0.7;
+                cropBox.style.height = `${h}px`;
+                cropBox.style.width = `${(h * 4) / 5}px`;
+            }
+        }
+
+        function applyCropAction() {
+            if (!state.workingCanvas) return;
+            saveHistoryState();
+
+            // Simple crop execution based on canvas ratio box
+            const tempCanvas = document.createElement('canvas');
+            const cropW = state.workingCanvas.width * 0.8;
+            const cropH = state.workingCanvas.height * 0.8;
+            const cropX = state.workingCanvas.width * 0.1;
+            const cropY = state.workingCanvas.height * 0.1;
+
+            tempCanvas.width = cropW;
+            tempCanvas.height = cropH;
+
+            const tCtx = tempCanvas.getContext('2d');
+            tCtx.drawImage(state.workingCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+            state.workingCanvas.width = cropW;
+            state.workingCanvas.height = cropH;
+            const wCtx = state.workingCanvas.getContext('2d');
+            wCtx.drawImage(tempCanvas, 0, 0);
+
+            document.getElementById('img-dim-indicator').innerText = `${Math.round(cropW)} × ${Math.round(cropH)} px`;
+            document.getElementById('crop-box').classList.add('hidden');
+            renderImage();
+            addActivityLog('Applied custom crop');
+            showToast('Crop applied.');
+        }
+
+        function cancelCropAction() {
+            document.getElementById('crop-box').classList.add('hidden');
+            switchEditorTool('adjust');
+        }
+
+        function handleResizeWidthChange(val) {
+            const lock = document.getElementById('resize-lock').checked;
+            if (lock && state.workingCanvas) {
+                const aspect = state.workingCanvas.height / state.workingCanvas.width;
+                document.getElementById('resize-height').value = Math.round(val * aspect);
+            }
+        }
+
+        function handleResizeHeightChange(val) {
+            const lock = document.getElementById('resize-lock').checked;
+            if (lock && state.workingCanvas) {
+                const aspect = state.workingCanvas.width / state.workingCanvas.height;
+                document.getElementById('resize-width').value = Math.round(val * aspect);
+            }
+        }
+
+        function applyResizeAction() {
+            if (!state.workingCanvas) return;
+            const newW = parseInt(document.getElementById('resize-width').value);
+            const newH = parseInt(document.getElementById('resize-height').value);
+
+            if (isNaN(newW) || isNaN(newH) || newW < 10 || newH < 10) {
+                showToast('Please enter valid dimensions.');
+                return;
+            }
+
+            saveHistoryState();
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = newW;
+            tempCanvas.height = newH;
+            const tCtx = tempCanvas.getContext('2d');
+            tCtx.drawImage(state.workingCanvas, 0, 0, newW, newH);
+
+            state.workingCanvas.width = newW;
+            state.workingCanvas.height = newH;
+            const wCtx = state.workingCanvas.getContext('2d');
+            wCtx.drawImage(tempCanvas, 0, 0);
+
+            document.getElementById('img-dim-indicator').innerText = `${newW} × ${newH} px`;
+            renderImage();
+            addActivityLog(`Resized image to ${newW}x${newH}`);
+            showToast('Dimensions updated.');
+        }
+
+        const FILTERS = {
+            original: { brightness: 0, contrast: 0, saturation: 0, exposure: 0, temperature: 0, tint: 0, grayscale: 0, fade: 0, vignette: 0 },
+            mono: { brightness: 10, contrast: 30, saturation: -100, exposure: 5, temperature: 0, tint: 0, grayscale: 100, fade: 15, vignette: 25 },
+            warmVintage: { brightness: 5, contrast: 15, saturation: 20, exposure: 5, temperature: 35, tint: 10, grayscale: 0, fade: 20, vignette: 15 },
+            coolFade: { brightness: -5, contrast: -10, saturation: -20, exposure: 0, temperature: -30, tint: -10, grayscale: 0, fade: 35, vignette: 10 },
+            duotoneBlue: { brightness: 0, contrast: 25, saturation: -50, exposure: 0, temperature: -50, tint: 20, grayscale: 50, fade: 10, vignette: 30 },
+            crispPop: { brightness: 5, contrast: 25, saturation: 30, exposure: 10, temperature: 5, tint: 0, grayscale: 0, fade: 0, vignette: 5 }
+        };
+
+        function applyFilterPreset(presetKey) {
+            const filter = FILTERS[presetKey];
+            if (!filter) return;
+
+            for (let prop in filter) {
+                state.adjustments[prop] = filter[prop];
+                const slider = document.querySelector(`input[oninput*="'${prop}'"]`);
+                if (slider) slider.value = filter[prop];
+                const valDisp = document.getElementById(`val-${prop}`);
+                if (valDisp) valDisp.innerText = filter[prop];
+            }
+
+            renderImage();
+            addActivityLog(`Applied preset: ${presetKey}`);
+            showToast(`Preset "${presetKey}" applied.`);
+        }
+
+        function saveHistoryState() {
+            if (!state.workingCanvas) return;
+            const wCtx = state.workingCanvas.getContext('2d');
+            const imgData = wCtx.getImageData(0, 0, state.workingCanvas.width, state.workingCanvas.height);
+
+            state.historyStack.push({
+                imgData: imgData,
+                width: state.workingCanvas.width,
+                height: state.workingCanvas.height
+            });
+
+            if (state.historyStack.length > state.maxHistory) {
+                state.historyStack.shift();
+            }
+
+            state.redoStack = []; // Clear redo on new action
+            updateUndoRedoButtons();
+        }
+
+        function undo() {
+            if (state.historyStack.length <= 1) return;
+
+            const current = state.historyStack.pop();
+            state.redoStack.push(current);
+
+            const previous = state.historyStack[state.historyStack.length - 1];
+            restoreState(previous);
+
+            updateUndoRedoButtons();
+            showToast('Undo performed.');
+        }
+
+        function redo() {
+            if (state.redoStack.length === 0) return;
+
+            const next = state.redoStack.pop();
+            state.historyStack.push(next);
+            restoreState(next);
+
+            updateUndoRedoButtons();
+            showToast('Redo performed.');
+        }
+
+        function restoreState(savedState) {
+            state.workingCanvas.width = savedState.width;
+            state.workingCanvas.height = savedState.height;
+            const wCtx = state.workingCanvas.getContext('2d');
+            wCtx.putImageData(savedState.imgData, 0, 0);
+
+            document.getElementById('img-dim-indicator').innerText = `${savedState.width} × ${savedState.height} px`;
+            renderImage();
+        }
+
+        function updateUndoRedoButtons() {
+            document.getElementById('btn-undo').disabled = state.historyStack.length <= 1;
+            document.getElementById('btn-redo').disabled = state.redoStack.length === 0;
+        }
+
+        function confirmReset() {
+            if (confirm("Reset all modifications back to original image?")) {
+                if (state.originalImage) {
+                    initEditorWithImage(state.originalImage, 'reset-photo.jpg');
+                    showToast('Photo reset to original state.');
+                }
+            }
+        }
+
+        function zoomCanvas(delta) {
+            state.zoomLevel = Math.max(0.2, Math.min(3, state.zoomLevel + delta));
+            const container = document.getElementById('canvas-container');
+            container.style.transform = `scale(${state.zoomLevel})`;
+            document.getElementById('zoom-text').innerText = `${Math.round(state.zoomLevel * 100)}%`;
+        }
+
+        function resetZoom() {
+            state.zoomLevel = 1;
+            const container = document.getElementById('canvas-container');
+            container.style.transform = `scale(1)`;
+            document.getElementById('zoom-text').innerText = `100%`;
+        }
+
+        function updateCompressQuality(val) {
+            document.getElementById('val-compress-quality').innerText = `${val}%`;
+            if (state.workingCanvas) {
+                const estKB = Math.round((state.workingCanvas.width * state.workingCanvas.height * 3 * (val / 100)) / 1024);
+                document.getElementById('info-est-size').innerText = `~${estKB} KB`;
+            }
+        }
+
+        function downloadImage() {
+            if (!mainCanvas) return;
+
+            const format = document.getElementById('export-format')?.value || 'image/jpeg';
+            const quality = (parseInt(document.getElementById('compress-quality-slider')?.value) || 90) / 100;
+
+            const ext = format === 'image/png' ? 'png' : format === 'image/webp' ? 'webp' : 'jpg';
+            const filename = `flit-edit-${Date.now()}.${ext}`;
+
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = mainCanvas.toDataURL(format, quality);
+            link.click();
+
+            addActivityLog(`Exported image: ${filename}`);
+            showToast(`Exported ${filename}`);
+        }
+
+        function addActivityLog(actionText) {
+            const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            state.activityLog.unshift({ text: actionText, time: timestamp });
+
+            const container = document.getElementById('activity-log-container');
+            if (container) {
+                container.innerHTML = state.activityLog.slice(0, 20).map(item => `
+                    <div class="p-3 bg-flit-card border border-flit-border rounded-lg flex items-center justify-between text-xs">
+                        <span class="text-white">${item.text}</span>
+                        <span class="font-mono text-flit-muted text-[10px]">${item.time}</span>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function clearActivityLog() {
+            state.activityLog = [];
+            addActivityLog('Activity log cleared.');
+            showToast('Log cleared.');
+        }
+
+        function clearLocalAppStorage() {
+            if (confirm('Clear local editor cache?')) {
+                location.reload();
+            }
+        }
+
+        function showToast(message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'bg-flit-surface border border-flit-border text-white text-xs px-4 py-2.5 rounded-xl shadow-2xl flex items-center space-x-2 fade-enter fade-enter-active';
+            toast.innerHTML = `
+                <span class="w-2 h-2 rounded-full bg-white"></span>
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 2500);
+        }
+    </script>
+</body>
+</html>
